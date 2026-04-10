@@ -3,11 +3,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import pandas as pd
 
-# Laden do modelo e tokenizador
+# Carregar modelo e tokenizer
 tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
 model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
 
-# Datenbank simulada
+# Banco de dados simulado
 bestell_daten = {
     "bestellnummer": ["12345", "67890", "11121", "22232"],
     "status": ["Versandt", "In Bearbeitung", "Geliefert", "Storniert"]
@@ -15,7 +15,7 @@ bestell_daten = {
 df_bestellstatus = pd.DataFrame(bestell_daten)
 
 def pruefe_bestellstatus(bestellnummer):
-    """Überprüft den Status einer Bestellung."""
+    """Verifica o status do pedido."""
     try:
         ergebnis = df_bestellstatus[df_bestellstatus['bestellnummer'] == str(bestellnummer)]
         if not ergebnis.empty:
@@ -28,16 +28,17 @@ def pruefe_bestellstatus(bestellnummer):
 status_schluesselwoerter = ['status', 'bestellung', 'wo ist mein paket', 'lieferung', 'tracking']
 
 def generiere_antwort(benutzer_eingabe, chat_historie_ids):
-    """Generiert eine Antwort com DialoGPT ou identifica intenção de status."""
+    """Gera resposta com DialoGPT ou detecta intenção de status."""
+    
     if any(wort in benutzer_eingabe.lower() for wort in status_schluesselwoerter):
         return 'Könnten Sie bitte Ihre Bestellnummer eingeben?', chat_historie_ids
     
-    neu_benutzer_input_ids = tokenizer.encode(benutzer_eingabe + tokenizer.eos_token, return_tensors='pt')
+    neu_input_ids = tokenizer.encode(benutzer_eingabe + tokenizer.eos_token, return_tensors='pt')
     
     if chat_historie_ids is not None:
-        bot_input_ids = torch.cat([chat_historie_ids, neu_benutzer_input_ids], dim=-1)
+        bot_input_ids = torch.cat([chat_historie_ids, neu_input_ids], dim=-1)
     else:
-        bot_input_ids = neu_benutzer_input_ids
+        bot_input_ids = neu_input_ids
 
     chat_historie_ids = model.generate(
         bot_input_ids,
@@ -45,24 +46,27 @@ def generiere_antwort(benutzer_eingabe, chat_historie_ids):
         pad_token_id=tokenizer.eos_token_id
     )
     
-    antwort = tokenizer.decode(chat_historie_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
+    antwort = tokenizer.decode(
+        chat_historie_ids[:, bot_input_ids.shape[-1]:][0],
+        skip_special_tokens=True
+    )
+
     return antwort, chat_historie_ids
+
 
 with gr.Blocks() as app:
     gr.Markdown("# E-Commerce KI-Support Bot 🤖")
     
-    # Racional: Definimos value=[] para garantir que ele comece no formato correto
-    chatbot = gr.Chatbot(label="Support-Chat", type="messages", value=[])
+    chatbot = gr.Chatbot(label="Support-Chat")
     msg = gr.Textbox(placeholder='Schreiben Sie hier...', label="Ihre Nachricht")
 
-    chat_status = gr.State(None) 
+    chat_status = gr.State(None)
     wartet_auf_nummer = gr.State(False)
 
     def verarbeite_eingabe(benutzer_eingabe, historie, chat_status, ist_am_warten):
-        # Garantia absoluta de que historie é uma lista de dicionários
         if not isinstance(historie, list):
             historie = []
-        
+
         if ist_am_warten:
             antwort = pruefe_bestellstatus(benutzer_eingabe)
             ist_am_warten = False
@@ -71,11 +75,9 @@ with gr.Blocks() as app:
             if 'Bestellnummer' in antwort:
                 ist_am_warten = True
 
-        # Adicionando as mensagens no formato exato exigido
-        historie.append({"role": "user", "content": str(benutzer_eingabe)})
-        historie.append({"role": "assistant", "content": str(antwort)})
-        
-        # O retorno para o chatbot deve ser a lista 'historie' atualizada
+        # FORMATO CORRETO PARA SUA VERSÃO DO GRADIO
+        historie.append((str(benutzer_eingabe), str(antwort)))
+
         return historie, chat_status, ist_am_warten, ""
 
     msg.submit(
