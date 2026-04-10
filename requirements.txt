@@ -2,4 +2,4 @@ transformers==4.40.0
 torch
 pandas
 huggingface_hub
-gradio==4.44.1
+gradio>=6.0.0
