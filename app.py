@@ -27,10 +27,14 @@ def pruefe_bestellstatus(bestellnummer):
 status_keywords = ['status', 'bestellung', 'paket', 'lieferung', 'tracking']
 
 def generiere_antwort(input_text, chat_history_ids):
+
     if any(w in input_text.lower() for w in status_keywords):
         return 'Könnten Sie bitte Ihre Bestellnummer eingeben?', chat_history_ids
 
-    new_ids = tokenizer.encode(input_text + tokenizer.eos_token, return_tensors='pt')
+    new_ids = tokenizer.encode(
+        input_text + tokenizer.eos_token,
+        return_tensors='pt'
+    )
 
     if chat_history_ids is not None:
         bot_input_ids = torch.cat([chat_history_ids, new_ids], dim=-1)
@@ -39,24 +43,26 @@ def generiere_antwort(input_text, chat_history_ids):
 
     attention_mask = torch.ones(bot_input_ids.shape, dtype=torch.long)
 
-chat_history_ids = model.generate(
-    bot_input_ids,
-    attention_mask=attention_mask,
-    max_new_tokens=100,      
-    pad_token_id=tokenizer.eos_token_id,
-    do_sample=True,          
-    top_k=50,
-    top_p=0.95,
-    temperature=0.7
-)
+    chat_history_ids = model.generate(
+        bot_input_ids,
+        attention_mask=attention_mask,
+        max_new_tokens=100,
+        pad_token_id=tokenizer.eos_token_id,
+        do_sample=True,
+        top_k=50,
+        top_p=0.95,
+        temperature=0.7
+    )
 
     response = tokenizer.decode(
         chat_history_ids[:, bot_input_ids.shape[-1]:][0],
         skip_special_tokens=True
     )
 
-    return response, chat_history_ids
+    if response.strip().lower() == input_text.strip().lower():
+        response = "Hallo! Wie kann ich Ihnen helfen?"
 
+    return response, chat_history_ids
 
 with gr.Blocks() as app:
     gr.Markdown("# E-Commerce KI-Support Bot 🤖")
