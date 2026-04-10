@@ -28,11 +28,10 @@ def pruefe_bestellstatus(bestellnummer):
 status_schluesselwoerter = ['status', 'bestellung', 'wo ist mein paket', 'lieferung', 'tracking']
 
 def generiere_antwort(benutzer_eingabe, chat_historie_ids):
-    """Generiert eine Antwort mit DialoGPT ou identifica intenção de status."""
+    """Generiert eine Antwort com DialoGPT ou identifica intenção de status."""
     if any(wort in benutzer_eingabe.lower() for wort in status_schluesselwoerter):
         return 'Könnten Sie bitte Ihre Bestellnummer eingeben?', chat_historie_ids
     
-    # Racional: Esta parte deve estar FORA do if anterior
     neu_benutzer_input_ids = tokenizer.encode(benutzer_eingabe + tokenizer.eos_token, return_tensors='pt')
     
     if chat_historie_ids is not None:
@@ -51,16 +50,16 @@ def generiere_antwort(benutzer_eingabe, chat_historie_ids):
 
 with gr.Blocks() as app:
     gr.Markdown("# E-Commerce KI-Support Bot 🤖")
-    gr.Markdown("Fragen Sie nach Ihrem Bestellstatus oder chatten Sie einfach mit mir.")
     
-    # Tipo 'messages' é o mais estável para evitar botões de erro
-    chatbot = gr.Chatbot(label="Support-Chat", type="messages")
-    msg = gr.Textbox(placeholder='Schreiben Sie aqui...', label="Ihre Nachricht")
+    # Removido o parâmetro 'type' para garantir compatibilidade
+    chatbot = gr.Chatbot(label="Support-Chat")
+    msg = gr.Textbox(placeholder='Schreiben Sie hier...', label="Ihre Nachricht")
 
     chat_status = gr.State(None) 
     wartet_auf_nummer = gr.State(False)
 
     def verarbeite_eingabe(benutzer_eingabe, historie, chat_status, ist_am_warten):
+        # Garante que a história comece como uma lista vazia
         if historie is None: historie = []
         
         if ist_am_warten:
@@ -68,12 +67,11 @@ with gr.Blocks() as app:
             ist_am_warten = False
         else:
             antwort, chat_status = generiere_antwort(benutzer_eingabe, chat_status)
-            if antwort == 'Könnten Sie bitte Ihre Bestellnummer eingeben?':
+            if antwort == 'Könnten Sie please enter your order number?' or 'Könnten Sie bitte Ihre Bestellnummer eingeben?' in antwort:
                 ist_am_warten = True
 
-        # Racional: Formato de mensagens moderno para evitar o erro visual
-        historie.append({"role": "user", "content": benutzer_eingabe})
-        historie.append({"role": "assistant", "content": antwort})
+        # Formato de TUPLA (Pergunta, Resposta) compatível com versões antigas
+        historie.append((benutzer_eingabe, antwort))
         
         return historie, chat_status, ist_am_warten, ""
 
