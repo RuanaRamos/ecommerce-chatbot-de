@@ -51,28 +51,31 @@ def generiere_antwort(benutzer_eingabe, chat_historie_ids):
 with gr.Blocks() as app:
     gr.Markdown("# E-Commerce KI-Support Bot 🤖")
     
-    # Removido o parâmetro 'type' para garantir compatibilidade
-    chatbot = gr.Chatbot(label="Support-Chat")
+    # Racional: Definimos value=[] para garantir que ele comece no formato correto
+    chatbot = gr.Chatbot(label="Support-Chat", type="messages", value=[])
     msg = gr.Textbox(placeholder='Schreiben Sie hier...', label="Ihre Nachricht")
 
     chat_status = gr.State(None) 
     wartet_auf_nummer = gr.State(False)
 
     def verarbeite_eingabe(benutzer_eingabe, historie, chat_status, ist_am_warten):
-        # Garante que a história comece como uma lista vazia
-        if historie is None: historie = []
+        # Garantia absoluta de que historie é uma lista de dicionários
+        if not isinstance(historie, list):
+            historie = []
         
         if ist_am_warten:
             antwort = pruefe_bestellstatus(benutzer_eingabe)
             ist_am_warten = False
         else:
             antwort, chat_status = generiere_antwort(benutzer_eingabe, chat_status)
-            if antwort == 'Könnten Sie please enter your order number?' or 'Könnten Sie bitte Ihre Bestellnummer eingeben?' in antwort:
+            if 'Bestellnummer' in antwort:
                 ist_am_warten = True
 
-        # Formato de TUPLA (Pergunta, Resposta) compatível com versões antigas
-        historie.append((benutzer_eingabe, antwort))
+        # Adicionando as mensagens no formato exato exigido
+        historie.append({"role": "user", "content": str(benutzer_eingabe)})
+        historie.append({"role": "assistant", "content": str(antwort)})
         
+        # O retorno para o chatbot deve ser a lista 'historie' atualizada
         return historie, chat_status, ist_am_warten, ""
 
     msg.submit(
