@@ -37,11 +37,18 @@ def generiere_antwort(input_text, chat_history_ids):
     else:
         bot_input_ids = new_ids
 
-    chat_history_ids = model.generate(
-        bot_input_ids,
-        max_length=1000,
-        pad_token_id=tokenizer.eos_token_id
-    )
+    attention_mask = torch.ones(bot_input_ids.shape, dtype=torch.long)
+
+chat_history_ids = model.generate(
+    bot_input_ids,
+    attention_mask=attention_mask,
+    max_new_tokens=100,      
+    pad_token_id=tokenizer.eos_token_id,
+    do_sample=True,          
+    top_k=50,
+    top_p=0.95,
+    temperature=0.7
+)
 
     response = tokenizer.decode(
         chat_history_ids[:, bot_input_ids.shape[-1]:][0],
