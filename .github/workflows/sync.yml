@@ -12,4 +12,4 @@ jobs:
       - name: Push to HF
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://Ruanaramos:$HF_TOKEN@huggingface.co/spaces/Ruanaramos/ecommerce-faq-ai main
+        run: git push --force https://Ruanaramos:$HF_TOKEN@huggingface.co/spaces/Ruanaramos/ecommerce-chatbot-de main
