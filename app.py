@@ -3,11 +3,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import pandas as pd
 
-# Carregar modelo e tokenizer
+# Modelo
 tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
 model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
 
-# Banco de dados simulado
+# Banco fake
 bestell_daten = {
     "bestellnummer": ["12345", "67890", "11121", "22232"],
     "status": ["Versandt", "In Bearbeitung", "Geliefert", "Storniert"]
@@ -15,75 +15,75 @@ bestell_daten = {
 df_bestellstatus = pd.DataFrame(bestell_daten)
 
 def pruefe_bestellstatus(bestellnummer):
-    """Verifica o status do pedido."""
     try:
         ergebnis = df_bestellstatus[df_bestellstatus['bestellnummer'] == str(bestellnummer)]
         if not ergebnis.empty:
             status = ergebnis['status'].iloc[0]
             return f'Der Status Ihrer Bestellung {bestellnummer} ist: {status}.'
-        return 'Bestellnummer nicht gefunden. Bitte prüfen Sie Ihre Eingabe.'
-    except Exception:
-        return 'Ein Fehler ist aufgetreten.'
+        return 'Bestellnummer nicht gefunden.'
+    except:
+        return 'Fehler beim Abrufen.'
 
-status_schluesselwoerter = ['status', 'bestellung', 'wo ist mein paket', 'lieferung', 'tracking']
+status_keywords = ['status', 'bestellung', 'paket', 'lieferung', 'tracking']
 
-def generiere_antwort(benutzer_eingabe, chat_historie_ids):
-    """Gera resposta com DialoGPT ou detecta intenção de status."""
-    
-    if any(wort in benutzer_eingabe.lower() for wort in status_schluesselwoerter):
-        return 'Könnten Sie bitte Ihre Bestellnummer eingeben?', chat_historie_ids
-    
-    neu_input_ids = tokenizer.encode(benutzer_eingabe + tokenizer.eos_token, return_tensors='pt')
-    
-    if chat_historie_ids is not None:
-        bot_input_ids = torch.cat([chat_historie_ids, neu_input_ids], dim=-1)
+def generiere_antwort(input_text, chat_history_ids):
+    if any(w in input_text.lower() for w in status_keywords):
+        return 'Könnten Sie bitte Ihre Bestellnummer eingeben?', chat_history_ids
+
+    new_ids = tokenizer.encode(input_text + tokenizer.eos_token, return_tensors='pt')
+
+    if chat_history_ids is not None:
+        bot_input_ids = torch.cat([chat_history_ids, new_ids], dim=-1)
     else:
-        bot_input_ids = neu_input_ids
+        bot_input_ids = new_ids
 
-    chat_historie_ids = model.generate(
+    chat_history_ids = model.generate(
         bot_input_ids,
         max_length=1000,
         pad_token_id=tokenizer.eos_token_id
     )
-    
-    antwort = tokenizer.decode(
-        chat_historie_ids[:, bot_input_ids.shape[-1]:][0],
+
+    response = tokenizer.decode(
+        chat_history_ids[:, bot_input_ids.shape[-1]:][0],
         skip_special_tokens=True
     )
 
-    return antwort, chat_historie_ids
+    return response, chat_history_ids
 
 
 with gr.Blocks() as app:
     gr.Markdown("# E-Commerce KI-Support Bot 🤖")
-    
-    chatbot = gr.Chatbot(label="Support-Chat")
-    msg = gr.Textbox(placeholder='Schreiben Sie hier...', label="Ihre Nachricht")
 
-    chat_status = gr.State(None)
-    wartet_auf_nummer = gr.State(False)
+    chatbot = gr.Chatbot(label="Support-Chat")  # SEM type
 
-    def verarbeite_eingabe(benutzer_eingabe, historie, chat_status, ist_am_warten):
-        if not isinstance(historie, list):
-            historie = []
+    msg = gr.Textbox(placeholder="Schreiben Sie hier...")
 
-        if ist_am_warten:
-            antwort = pruefe_bestellstatus(benutzer_eingabe)
-            ist_am_warten = False
+    chat_state = gr.State(None)
+    waiting_for_number = gr.State(False)
+
+    def handle_input(user_input, history, chat_state, waiting):
+
+        if history is None:
+            history = []
+
+        if waiting:
+            answer = pruefe_bestellstatus(user_input)
+            waiting = False
         else:
-            antwort, chat_status = generiere_antwort(benutzer_eingabe, chat_status)
-            if 'Bestellnummer' in antwort:
-                ist_am_warten = True
+            answer, chat_state = generiere_antwort(user_input, chat_state)
+            if "Bestellnummer" in answer:
+                waiting = True
 
-        # FORMATO CORRETO PARA SUA VERSÃO DO GRADIO
-        historie.append((str(benutzer_eingabe), str(antwort)))
+        # 👉 FORMATO CORRETO (messages)
+        history.append({"role": "user", "content": user_input})
+        history.append({"role": "assistant", "content": answer})
 
-        return historie, chat_status, ist_am_warten, ""
+        return history, chat_state, waiting, ""
 
     msg.submit(
-        verarbeite_eingabe,
-        [msg, chatbot, chat_status, wartet_auf_nummer],
-        [chatbot, chat_status, wartet_auf_nummer, msg]
+        handle_input,
+        [msg, chatbot, chat_state, waiting_for_number],
+        [chatbot, chat_state, waiting_for_number, msg]
     )
 
 if __name__ == "__main__":
